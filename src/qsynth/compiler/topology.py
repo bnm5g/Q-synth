@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import math
 from abc import ABC, abstractmethod
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -73,9 +74,9 @@ class HardwareTopology:
         if src == dst:
             return [src]
         visited = {src}
-        queue: list[list[int]] = [[src]]
+        queue: deque[list[int]] = deque([[src]])
         while queue:
-            path = queue.pop(0)
+            path = queue.popleft()
             current = path[-1]
             for nb in self.neighbors(current):
                 if nb == dst:

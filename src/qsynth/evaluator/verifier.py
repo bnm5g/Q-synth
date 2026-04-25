@@ -132,92 +132,67 @@ class CircuitVerifier:
             details=details,
         )
 
-    # ── Gate identity verification (Z3) ───────────────────────────────────
+    # ── Gate identity verification (numerical) ────────────────────────────
 
-    def verify_gate_identities_z3(self) -> VerificationResult:
+    def verify_gate_identities(self) -> VerificationResult:
         """
-        Use Z3 to formally prove key gate algebraic identities:
-        - CNOT · CNOT = I
-        - H · H = I
-        - Rz(a) · Rz(-a) = I
+        Numerically verify key gate algebraic identities via matrix products:
 
-        These are encoded as rational-approximation matrix equalities
-        over Z3's real arithmetic theory.
+        - CNOT · CNOT = I   (CNOT is self-inverse)
+        - H · H = I         (H is self-inverse)
+        - Rz(θ) · Rz(-θ) = I  (for several sample values of θ)
+
+        Each identity is checked by computing the matrix product and comparing
+        with the identity via ``numpy.allclose`` (atol=1e-10).
 
         Returns
         -------
         VerificationResult
-            Always uses method="z3".
+            ``method="numerical"``.  ``passed=True`` iff all identities hold.
         """
-        try:
-            import z3  # type: ignore
-        except ImportError:
-            return VerificationResult(
-                passed=False,
-                frobenius_error=float("inf"),
-                method="z3",
-                details="z3-solver is not installed. Run: pip install z3-solver",
-            )
+        from qsynth.synthesizer.gate_defs import CnotGate, HGate, RzGate
 
         identities_verified: list[str] = []
         identities_failed: list[str] = []
 
-        # Encode matrix equality check using numerical validation (Z3 real-number
-        # encoding of 4x4 floating matrices is complex; we use Z3's python
-        # API to prove simple symbolic properties instead).
+        def _is_identity_product(m1: np.ndarray, m2: np.ndarray) -> bool:
+            return bool(np.allclose(m2 @ m1, np.eye(len(m1)), atol=1e-10))
 
-        # Property 1: CNOT is self-inverse (CNOT² = I)
-        # Represented as: CNOT_matrix @ CNOT_matrix == I_4
-        from qsynth.synthesizer.gate_defs import CnotGate, HGate, RzGate
-        import numpy as np
-
-        def _check_self_inverse(gate_matrix: np.ndarray, name: str) -> bool:
-            product = gate_matrix @ gate_matrix
-            return bool(np.allclose(product, np.eye(len(gate_matrix)), atol=1e-10))
-
-        def _check_adjoint_inverse(
-            mat1: np.ndarray, mat2: np.ndarray, name: str
-        ) -> bool:
-            product = mat2 @ mat1
-            return bool(np.allclose(product, np.eye(len(mat1)), atol=1e-10))
-
-        # Verify via Z3 solver using integer linear arithmetic for self-inverse.
-        solver = z3.Solver()
-
-        # Z3 proof: CNOT is self-inverse (dimension 4, exact integer entries)
+        # CNOT² = I
         cnot_mat = CnotGate().matrix()
-        if _check_self_inverse(cnot_mat, "CNOT"):
+        if _is_identity_product(cnot_mat, cnot_mat):
             identities_verified.append("CNOT² = I")
         else:
             identities_failed.append("CNOT² = I")
 
-        # H is self-inverse
+        # H² = I
         h_mat = HGate().matrix()
-        if _check_self_inverse(h_mat, "H"):
+        if _is_identity_product(h_mat, h_mat):
             identities_verified.append("H² = I")
         else:
             identities_failed.append("H² = I")
 
-        # Rz(θ) · Rz(-θ) = I for arbitrary θ
+        # Rz(θ) · Rz(-θ) = I  for several sample θ values
         import math
         for theta in [0.1, 0.5, math.pi / 4, math.pi]:
             rz_mat = RzGate(theta).matrix()
             rz_inv = RzGate(-theta).matrix()
-            if _check_adjoint_inverse(rz_mat, rz_inv, f"Rz({theta:.2f})"):
-                identities_verified.append(f"Rz({theta:.2f})·Rz(-{theta:.2f})=I")
+            label = f"Rz({theta:.2f})·Rz(-{theta:.2f})=I"
+            if _is_identity_product(rz_mat, rz_inv):
+                identities_verified.append(label)
             else:
-                identities_failed.append(f"Rz({theta:.2f})·Rz(-{theta:.2f})=I")
+                identities_failed.append(label)
 
         all_passed = len(identities_failed) == 0
         details = (
-            f"Z3 gate identity verification. "
-            f"Proved: {identities_verified}. "
+            f"Numerical gate identity verification. "
+            f"Verified: {identities_verified}. "
             + (f"Failed: {identities_failed}." if identities_failed else "All passed.")
         )
         return VerificationResult(
             passed=all_passed,
             frobenius_error=0.0 if all_passed else 1.0,
-            method="z3",
+            method="numerical",
             details=details,
         )
 

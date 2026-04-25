@@ -354,16 +354,21 @@ class CnotGate(Gate):
 
 class CrzGate(Gate):
     """
-    Controlled-Rz(θ) gate, 2 qubits (control, target).
+    Controlled-phase gate (CRZ), 2 qubits (control, target).
 
-    This is the standard ZZ-rotation building block used in QAOA:
-        e^{-i θ/2 ZZ} = CNOT · Rz(θ) · CNOT
+    When the control qubit is |1⟩, applies Rz(θ) to the target qubit;
+    otherwise acts as identity.  This is a *diagonal* gate — not the same
+    as the ZZ-rotation  e^{-iθ/2 ZZ}  used in QAOA phase separators.
 
-    Matrix:
-        [[1, 0, 0,           0          ],
-         [0, 1, 0,           0          ],
-         [0, 0, e^{-iθ/2},  0          ],
-         [0, 0, 0,           e^{+iθ/2} ]]
+    The ZZ-rotation is instead decomposed as a CNOT sandwich in
+    ``NaiveSynthesizer._append_phase_separator``:
+        e^{-iγJ ZZ} = CNOT(i→j) · Rz(2γJ, j) · CNOT(i→j)
+
+    Matrix (computational basis {|00⟩, |01⟩, |10⟩, |11⟩}):
+        [[1, 0,           0,           0          ],
+         [0, 1,           0,           0          ],
+         [0, 0, e^{-iθ/2},            0          ],
+         [0, 0,           0, e^{+iθ/2}           ]]
     """
 
     __slots__ = ("_theta",)

@@ -55,6 +55,29 @@ def _pauli_kron(pauli_str: str) -> np.ndarray:
     return result
 
 
+# Sparse single-qubit Pauli matrices (pre-built for reuse)
+_PAULI_SPARSE: dict[str, sp_sparse.csr_matrix] = {
+    k: sp_sparse.csr_matrix(v) for k, v in PAULI_MATRICES.items()
+}
+
+
+def _pauli_kron_sparse(pauli_str: str) -> sp_sparse.csr_matrix:
+    """
+    Compute the sparse 2ⁿ × 2ⁿ CSR matrix for a Pauli string.
+
+    Builds the Kronecker product iteratively using ``scipy.sparse.kron``
+    so that no dense 2ⁿ × 2ⁿ matrix is ever allocated — efficient for
+    large n (up to ~14 qubits).
+
+    Same qubit convention as :func:`_pauli_kron` (Qiskit: rightmost = qubit 0).
+    """
+    ops = [_PAULI_SPARSE[c] for c in reversed(pauli_str)]
+    result: sp_sparse.csr_matrix = ops[0]
+    for op in ops[1:]:
+        result = sp_sparse.kron(op, result, format="csr")
+    return result
+
+
 # ── Data classes ──────────────────────────────────────────────────────────────
 
 
@@ -96,8 +119,13 @@ class PauliTerm:
         return self.coefficient * _pauli_kron(self.pauli_str)
 
     def sparse_matrix(self) -> sp_sparse.csr_matrix:
-        """Return the sparse CSR representation (efficient for large n)."""
-        return sp_sparse.csr_matrix(self.matrix())
+        """
+        Return the sparse CSR representation.
+
+        Built via iterated ``scipy.sparse.kron`` — no dense 2ⁿ × 2ⁿ matrix
+        is allocated, making this efficient for large n.
+        """
+        return self.coefficient * _pauli_kron_sparse(self.pauli_str)
 
     def to_qiskit(self) -> SparsePauliOp:
         """Convert to a single-term Qiskit SparsePauliOp."""

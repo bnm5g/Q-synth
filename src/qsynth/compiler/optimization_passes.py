@@ -45,7 +45,7 @@ from typing import Sequence
 
 import numpy as np
 
-from qsynth.exceptions import OptimizationError
+
 from qsynth.synthesizer.gate_defs import (
     Gate,
     GateType,
@@ -311,25 +311,30 @@ class CommutativityPass(OptimizationPass):
 
     def _should_swap(self, a: GateApplication, b: GateApplication) -> bool:
         """
-        Return True if swapping a, b is:
-        1. Semantically safe (commutes), AND
-        2. Productive (brings same-type gates together for merge/cancel).
+        Return True if swapping a, b is semantically safe (gates commute).
+
+        Disjoint-qubit pairs:
+            Always commute trivially (tensor factors on independent subspaces).
+            The swap is unconditionally allowed — the PassManager's convergence
+            loop bounds the total number of reorderings via ``max_iter``.
+
+        Shared-qubit pairs:
+            Must (a) be the same gate type AND (b) satisfy G₁G₂ = G₂G₁
+            verified via matrix product.  The type check is kept here to
+            avoid expensive matrix multiplications for obviously non-commuting
+            pairs (e.g. H and Rz on the same qubit).
         """
-        # Only swap gates of same type (to expose merge/cancel).
+        if not _ops_share_qubits(a, b):
+            # Disjoint qubits — trivially commute, always safe to swap.
+            return True
+        # Shared qubits: type must match (necessary but not sufficient).
         if a.gate.gate_type != b.gate.gate_type:
             return False
-        if not _ops_share_qubits(a, b):
-            # Disjoint qubits commute trivially — only swap if same type.
-            return True
-        # Shared qubits: must verify commutativity via matrix multiplication.
         if a.gate.n_qubits != b.gate.n_qubits or set(a.qubits) != set(b.qubits):
             return False
         AB = a.gate.matrix() @ b.gate.matrix()
         BA = b.gate.matrix() @ a.gate.matrix()
-        if not _matrices_equal(AB, BA, self._tol):
-            return False
-        # Only swap if the swap would bring the same type together.
-        return a.gate.gate_type == b.gate.gate_type
+        return _matrices_equal(AB, BA, self._tol)
 
 
 # ── Pass 4: Cancellation ──────────────────────────────────────────────────────
