@@ -104,6 +104,9 @@ class ASTVisitor(ABC):
     @abstractmethod
     def visit_matrix_expr(self, node: "MatrixExpr") -> Any: ...
 
+    @abstractmethod
+    def visit_polynomial_term(self, node: "PolynomialTerm") -> Any: ...
+
 
 # ── Leaf nodes ───────────────────────────────────────────────────────────────
 
@@ -336,3 +339,36 @@ class MatrixExpr(ASTNode):
 
     def __repr__(self) -> str:
         return f"MatrixExpr({self.vector_sym}ᵀ·x, vars={list(self.variables.names)})"
+
+
+@dataclass(frozen=True)
+class PolynomialTerm(ASTNode):
+    """
+    A single polynomial term c * x_1 * x_2 * ...
+    
+    Attributes
+    ----------
+    variables   : tuple[Variable, ...]
+        The binary variables forming the product term.
+    coefficient : float
+        The scalar coefficient multiplier.
+    """
+
+    variables: tuple[Variable, ...]
+    coefficient: float = 1.0
+
+    @property
+    def sympy_expr(self) -> sp.Expr:
+        expr = sp.Float(self.coefficient)
+        for var in self.variables:
+            expr *= var.sympy_expr
+        return expr
+
+    def accept(self, visitor: ASTVisitor) -> Any:
+        return visitor.visit_polynomial_term(self)
+
+    def __repr__(self) -> str:
+        if not self.variables:
+            return f"PolyTerm({self.coefficient})"
+        var_names = " * ".join(v.name for v in self.variables)
+        return f"PolyTerm({self.coefficient} * {var_names})"

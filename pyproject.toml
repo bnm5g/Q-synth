@@ -47,6 +47,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 addopts = "-v --tb=short"
 python_files = ["test_*.py"]
 python_classes = ["Test*"]

@@ -56,8 +56,10 @@ from qsynth.parser.ast_nodes import (
     QuadraticForm,
     UnaryOp,
     VariableVector,
+    PolynomialTerm,
 )
 from qsynth.parser.financial_parser import FinancialObjective
+from qsynth.parser.hobo_parser import PolynomialObjective
 
 
 # ── QUBOProblem data container ────────────────────────────────────────────────
@@ -283,6 +285,22 @@ class _QUBOExtractor(ASTVisitor):
     def visit_matrix_expr(self, node: MatrixExpr) -> None:  # type: ignore[override]
         self._absorb_linear(node, self._sign)
 
+    def visit_polynomial_term(self, node: PolynomialTerm) -> None:
+        deg = len(node.variables)
+        if deg == 0:
+            self._constant += node.coefficient * self._sign
+        elif deg == 1:
+            idx = self._idx[node.variables[0].name]
+            self._add_linear(idx, node.coefficient * self._sign)
+        elif deg == 2:
+            idx1 = self._idx[node.variables[0].name]
+            idx2 = self._idx[node.variables[1].name]
+            self._add_quadratic(idx1, idx2, node.coefficient * self._sign)
+        else:
+            raise HamiltonianConstructionError(
+                f"Degree-{deg} PolynomialTerm found; QUBO requires degree <= 2."
+            )
+
     # ── result extraction ─────────────────────────────────────────────────
 
     def build(self) -> tuple[np.ndarray, float]:
@@ -335,17 +353,17 @@ def _apply_budget_penalty(
 # ── Public entry-point ────────────────────────────────────────────────────────
 
 
-def build_qubo(objective: FinancialObjective) -> QUBOProblem:
+def build_qubo(objective: FinancialObjective | PolynomialObjective) -> QUBOProblem:
     """
-    Build a :class:`QUBOProblem` from a :class:`FinancialObjective`.
+    Build a :class:`QUBOProblem` from an objective.
 
     The mapping uses binary identity  xᵢ² = xᵢ  to linearise diagonal
-    terms, yielding an exact QUBO formulation of the Markowitz objective.
+    terms, yielding an exact QUBO formulation.
 
     Parameters
     ----------
-    objective : FinancialObjective
-        Parsed portfolio objective.
+    objective : FinancialObjective | PolynomialObjective
+        Parsed portfolio or polynomial objective.
 
     Returns
     -------
@@ -357,7 +375,15 @@ def build_qubo(objective: FinancialObjective) -> QUBOProblem:
     HamiltonianConstructionError
         If the AST contains higher-degree terms or structural issues.
     """
-    n = objective.n_assets
+    if isinstance(objective, FinancialObjective):
+        n = objective.n_assets
+        budget = objective.budget
+        penalty = objective.penalty
+    else:
+        n = objective.variable_vec.n_vars
+        budget = None
+        penalty = 0.0
+
     names = objective.variable_vec.names
 
     extractor = _QUBOExtractor(n, names)
@@ -365,9 +391,9 @@ def build_qubo(objective: FinancialObjective) -> QUBOProblem:
     Q, constant = extractor.build()
 
     # Budget constraint is handled separately for clarity.
-    if objective.budget is not None:
+    if budget is not None:
         Q, constant = _apply_budget_penalty(
-            Q, constant, names, objective.budget, objective.penalty
+            Q, constant, names, budget, penalty
         )
 
     return QUBOProblem(Q=Q, variable_names=names, constant=constant)

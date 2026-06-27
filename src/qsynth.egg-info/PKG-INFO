@@ -72,10 +72,10 @@ where $Q_{ii} = \frac{q}{2}\Sigma_{ii} - \mu_i$ and $Q_{ij} = q\Sigma_{ij}$ for 
 
 Via the substitution $x_i = \frac{1 - \sigma_i^z}{2}$:
 
-$$H_{\text{Ising}} = \sum_i h_i Z_i + \sum_{i<j} J_{ij} Z_i Z_j + \text{offset} \cdot I$$
+$$H_{\mathrm{Ising}} = \sum_i h_i Z_i + \sum_{i<j} J_{ij} Z_i Z_j + \text{offset} \cdot I$$
 
 where:
-$$h_i = -\frac{1}{4} \sum_j Q_{ij}^{\text{sym}}, \quad J_{ij} = \frac{Q_{ij}^{\text{sym}}}{4}, \quad \text{offset} = \frac{\sum_{ij} Q_{ij}^{\text{sym}}}{4} + \text{const}$$
+$$h_i = -\frac{1}{4} \sum_j Q_{ij}^{\mathrm{sym}}, \quad J_{ij} = \frac{Q_{ij}^{\mathrm{sym}}}{4}, \quad \text{offset} = \frac{\sum_{ij} Q_{ij}^{\mathrm{sym}}}{4} + \text{const}$$
 
 *Reference: Lucas, A. (2014). "Ising formulations of many NP problems." Frontiers in Physics, 2, 5.*
 
@@ -135,7 +135,7 @@ graph TD
     subgraph Evaluator["qsynth.evaluator"]
         I --> L["StatevectorEvaluator<br/>⟨ψ|H|ψ⟩"]
         L --> M["SolutionResult<br/>asset selection, metrics"]
-        I --> N["CircuitVerifier<br/>numerical + Z3"]
+        I --> N["CircuitVerifier<br/>numerical verification"]
     end
 
     style Parser fill:#1a1a2e,color:#e0e0ff
@@ -179,7 +179,7 @@ Q-Synth/
 │       └── evaluator/
 │           ├── __init__.py
 │           ├── statevector_evaluator.py  # Qiskit statevector simulation
-│           ├── verifier.py              # Numerical + Z3 verification
+│           ├── verifier.py              # Numerical verification (gate identities + circuit equivalence)
 │           └── solution_extractor.py    # Quantum → portfolio solution
 └── tests/
     ├── conftest.py                   # Shared fixtures
@@ -211,7 +211,7 @@ qsynth --n-assets 4 --layers 1
 # 4 assets, 2 layers, linear (chain) topology
 qsynth --n-assets 4 --layers 2 --topology linear
 
-# With Z3 formal verification
+# With numerical verification (gate identities + circuit-Hamiltonian equivalence)
 qsynth --n-assets 4 --verify
 ```
 
@@ -281,7 +281,7 @@ print(solution.describe())
 | **Unitarity enforcement** | `_assert_unitary()` checks `‖U†U − I‖_F < tol` before gate use |
 | **Sparse matrices** | `scipy.sparse.csr_matrix` used for Hamiltonian at n > 10 qubits |
 | **Hardware agnosticism** | `LogicalCircuit` uses abstract qubit indices; `TopologyMapper` inserts SWAPs |
-| **Formal verification** | Z3 SMT solver proves gate algebraic identities; scipy matrix exponential for circuit equivalence |
+| **Formal verification** | `verify_gate_identities()` checks CNOT²=I, H²=I, Rz(θ)Rz(-θ)=I via matrix products; `verify_numerical()` uses `scipy.linalg.expm` to compare circuit unitary with e^{-iHt} |
 
 ---
 
@@ -307,8 +307,8 @@ print(solution.describe())
 The current synthesizer uses a deterministic rule-based approach (QAOA Ansatz). A natural extension is to frame synthesis as a **Markov Decision Process**:
 
 - **State**: Current partial circuit (sequence of gates applied so far)
-- **Action**: Append a gate from the gate set $\{H, R_z(\theta), \text{CNOT}, \ldots\}$
-- **Reward**: $-\text{circuit\_depth}$ when the target expectation value is achieved within $\varepsilon$
+- **Action**: Append a gate from the gate set $\{H, R_z(\theta), \mathrm{CNOT}, \ldots\}$
+- **Reward**: $-d_{\mathrm{circuit}}$ when the target expectation value is achieved within $\varepsilon$
 
 An RL agent (e.g., **AlphaZero-style MCTS** or **PPO**) could discover circuit structures that are shorter than the QAOA Ansatz, especially for highly structured financial Hamiltonians.
 

@@ -10,6 +10,7 @@ src/qsynth.egg-info/entry_points.txt
 src/qsynth.egg-info/requires.txt
 src/qsynth.egg-info/top_level.txt
 src/qsynth/compiler/__init__.py
+src/qsynth/compiler/hobo_to_qubo.py
 src/qsynth/compiler/optimization_passes.py
 src/qsynth/compiler/topology.py
 src/qsynth/evaluator/__init__.py
@@ -22,6 +23,7 @@ src/qsynth/ir/pauli_hamiltonian.py
 src/qsynth/parser/__init__.py
 src/qsynth/parser/ast_nodes.py
 src/qsynth/parser/financial_parser.py
+src/qsynth/parser/hobo_parser.py
 src/qsynth/parser/qubo_builder.py
 src/qsynth/synthesizer/__init__.py
 src/qsynth/synthesizer/gate_defs.py
@@ -29,6 +31,7 @@ src/qsynth/synthesizer/logical_circuit.py
 src/qsynth/synthesizer/naive_synthesizer.py
 tests/test_compiler.py
 tests/test_evaluator.py
+tests/test_hobo_reduction.py
 tests/test_integration.py
 tests/test_ir.py
 tests/test_parser.py
